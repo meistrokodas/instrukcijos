@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5">
+<title>KLASIKA Standart</title>
+<style>
+/* Layout: full-bleed step viewer; wordless chrome floats over the drawing. */
+:root{
+  --paper:#f4f5f6; --ink:#1b1f22; --line:#d4d8db;
+  --chrome:rgba(255,255,255,.92); --chrome-edge:rgba(0,0,0,.10);
+  --accent:#2f6d6a; --muted:#7d868c;
+  color-scheme:light;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#15181a; --ink:#e9edef; --line:#2c3236;
+  --chrome:rgba(25,29,32,.92); --chrome-edge:rgba(255,255,255,.12);
+  --accent:#6fb3ad; --muted:#8b9499; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#15181a; --ink:#e9edef; --line:#2c3236;
+  --chrome:rgba(25,29,32,.92); --chrome-edge:rgba(255,255,255,.12);
+  --accent:#6fb3ad; --muted:#8b9499; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  font-variant-numeric:tabular-nums;
+  overscroll-behavior:none; -webkit-tap-highlight-color:transparent;
+}
+#stage{
+  position:fixed; inset:0; display:grid; place-items:center;
+  padding:calc(var(--safe-t) + 56px) max(12px,var(--safe-r)) calc(var(--safe-b) + 68px) max(12px,var(--safe-l));
+  touch-action:none; overflow:hidden;
+}
+#sheet{
+  position:relative; will-change:transform; transform-origin:0 0;
+  transition:transform .18s cubic-bezier(.22,.61,.36,1);
+}
+#sheet.dragging{transition:none}
+#sheet img{
+  display:block; max-width:100%; max-height:100%;
+  width:auto; height:auto; border-radius:6px;
+  background:#fff; box-shadow:0 2px 18px rgba(0,0,0,.14);
+  user-select:none; -webkit-user-drag:none;
+}
+/* top bar: step counter only — numbers read in every language */
+#top{
+  position:fixed; left:0; right:0; top:0; z-index:5;
+  padding:calc(var(--safe-t) + 10px) max(12px,var(--safe-r)) 10px max(12px,var(--safe-l));
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  background:linear-gradient(var(--chrome),transparent);
+}
+#count{
+  font-size:15px; font-weight:650; letter-spacing:.02em;
+  background:var(--chrome); border:1px solid var(--chrome-edge);
+  padding:6px 12px; border-radius:999px; backdrop-filter:blur(8px);
+}
+#count b{color:var(--accent)}
+.iconbtn{
+  width:40px; height:40px; display:grid; place-items:center; cursor:pointer;
+  background:var(--chrome); color:var(--ink); border:1px solid var(--chrome-edge);
+  border-radius:999px; backdrop-filter:blur(8px); padding:0;
+}
+.iconbtn:active{transform:scale(.94)}
+.iconbtn svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.iconbtn:focus-visible,#prev:focus-visible,#next:focus-visible,.tick:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+/* bottom bar: progress ticks + arrows */
+#bottom{
+  position:fixed; left:0; right:0; bottom:0; z-index:5;
+  padding:10px max(12px,var(--safe-r)) calc(var(--safe-b) + 12px) max(12px,var(--safe-l));
+  display:flex; align-items:center; gap:12px;
+  background:linear-gradient(transparent,var(--chrome) 42%);
+}
+#prev,#next{
+  flex:0 0 auto; width:52px; height:44px; display:grid; place-items:center; cursor:pointer;
+  background:var(--chrome); color:var(--ink); border:1px solid var(--chrome-edge);
+  border-radius:12px; backdrop-filter:blur(8px); padding:0;
+}
+#prev[disabled],#next[disabled]{opacity:.34; cursor:default}
+#prev:active:not([disabled]),#next:active:not([disabled]){transform:scale(.96)}
+#prev svg,#next svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#ticks{flex:1 1 auto; display:flex; gap:3px; min-width:0}
+.tick{
+  flex:1 1 0; height:22px; display:grid; place-items:center; cursor:pointer;
+  background:none; border:0; padding:0;
+}
+.tick i{display:block; width:100%; height:4px; border-radius:2px; background:var(--line); transition:background .15s,height .15s}
+.tick[aria-current="true"] i{background:var(--accent); height:9px}
+.tick.done i{background:var(--muted)}
+@media (prefers-reduced-motion:reduce){#sheet,.tick i{transition:none}}
+</style>
+</head>
+<body>
+
+<div id="stage" aria-live="polite">
+  <div id="sheet"><img id="pic" alt=""></div>
+</div>
+
+<div id="top">
+  <div id="count"><b id="cur">1</b> / <span id="tot">27</span></div>
+  <button class="iconbtn" id="zoom" aria-label="Zoom">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3M11 8v6M8 11h6"/></svg>
+  </button>
+</div>
+
+<div id="bottom">
+  <button id="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <div id="ticks"></div>
+  <button id="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+</div>
+
+<script>
+(function(){
+  var TOTAL = 27, i = 0, scale = 1, tx = 0, ty = 0;
+  var pic=document.getElementById('pic'), sheet=document.getElementById('sheet'),
+      stage=document.getElementById('stage'), cur=document.getElementById('cur'),
+      prev=document.getElementById('prev'), next=document.getElementById('next'),
+      ticks=document.getElementById('ticks');
+  document.getElementById('tot').textContent = TOTAL;
+
+  function src(n){ return 'steps/' + String(n+1).padStart(2,'0') + '.jpg'; }
+
+  for (var t=0;t<TOTAL;t++){
+    var b=document.createElement('button');
+    b.className='tick'; b.type='button'; b.dataset.i=t;
+    b.setAttribute('aria-label', String(t+1));
+    b.innerHTML='<i></i>';
+    ticks.appendChild(b);
+  }
+  var tickEls = ticks.querySelectorAll('.tick');
+
+  function resetZoom(){ scale=1; tx=0; ty=0; apply(); }
+  function apply(){ sheet.style.transform='translate('+tx+'px,'+ty+'px) scale('+scale+')'; }
+
+  function preload(n){ if(n>=0&&n<TOTAL){ var im=new Image(); im.src=src(n); } }
+
+  function show(n, instant){
+    i = Math.max(0, Math.min(TOTAL-1, n));
+    pic.src = src(i);
+    cur.textContent = i+1;
+    prev.disabled = i===0; next.disabled = i===TOTAL-1;
+    for (var k=0;k<tickEls.length;k++){
+      tickEls[k].setAttribute('aria-current', k===i ? 'true':'false');
+      tickEls[k].classList.toggle('done', k<i);
+    }
+    resetZoom();
+    preload(i+1); preload(i-1);
+    try{ localStorage.setItem('klasika-standart-step', String(i)); }catch(e){}
+  }
+
+  prev.addEventListener('click', function(){ show(i-1); });
+  next.addEventListener('click', function(){ show(i+1); });
+  ticks.addEventListener('click', function(e){
+    var b = e.target.closest('.tick'); if (b) show(+b.dataset.i);
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key==='ArrowRight'||e.key==='PageDown'){ show(i+1); }
+    else if (e.key==='ArrowLeft'||e.key==='PageUp'){ show(i-1); }
+    else if (e.key==='Home'){ show(0); }
+    else if (e.key==='End'){ show(TOTAL-1); }
+  });
+
+  document.getElementById('zoom').addEventListener('click', function(){
+    if (scale > 1.05) { resetZoom(); }
+    else { scale = 2.2; var r=stage.getBoundingClientRect();
+           tx = -(r.width*(scale-1))/2; ty = -(r.height*(scale-1))/2; apply(); }
+  });
+
+  /* pointer: swipe to change step, drag to pan when zoomed, pinch to zoom */
+  var pts = new Map(), startD = 0, startS = 1, startX = 0, startY = 0, sx = 0, sy = 0, moved = false;
+
+  stage.addEventListener('pointerdown', function(e){
+    stage.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    moved = false;
+    if (pts.size === 1){ startX = e.clientX; startY = e.clientY; sx = tx; sy = ty; sheet.classList.add('dragging'); }
+    if (pts.size === 2){ startD = dist(); startS = scale; }
+  });
+
+  stage.addEventListener('pointermove', function(e){
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if (pts.size === 2){
+      var d = dist(); if (startD > 0){ scale = clamp(startS * d/startD, 1, 5); apply(); }
+      moved = true; return;
+    }
+    var dx = e.clientX - startX, dy = e.clientY - startY;
+    if (Math.abs(dx) > 6 || Math.abs(dy) > 6) moved = true;
+    if (scale > 1.05){ tx = sx + dx; ty = sy + dy; apply(); }
+  });
+
+  function end(e){
+    if (!pts.has(e.pointerId)) return;
+    var dx = e.clientX - startX;
+    pts.delete(e.pointerId);
+    if (pts.size === 0){
+      sheet.classList.remove('dragging');
+      if (scale <= 1.05 && moved && Math.abs(dx) > 55){ show(dx < 0 ? i+1 : i-1); }
+      else { apply(); }
+    }
+  }
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+
+  function dist(){
+    var a = Array.from(pts.values());
+    return Math.hypot(a[0].x-a[1].x, a[0].y-a[1].y);
+  }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+
+  var saved = 0;
+  try{ saved = parseInt(localStorage.getItem('klasika-standart-step')||'0',10) || 0; }catch(e){}
+  show(saved);
+})();
+</script>
+</body>
+</html>
